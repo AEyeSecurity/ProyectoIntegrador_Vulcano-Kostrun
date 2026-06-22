@@ -6,6 +6,7 @@ import '../../components/custom_text_field.dart';
 import '../../components/primary_button.dart';
 import '../../services/auth_service.dart';
 import '../../utils/calificacion_middleware.dart';
+import '../../services/baja_cuenta_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -160,6 +161,22 @@ class _LoginScreenState extends State<LoginScreen> {
             duration: Duration(seconds: 2),
           ),
         );
+
+        // Verificar si completó onboarding
+        //final hasCompleted = await AuthService.hasCompletedOnboarding();
+
+        // ✅ NUEVO: Verificar si la cuenta está suspendida por puntuación
+        final bajaCuentaInfo = await BajaCuentaService.verificarEstadoCuenta();
+        
+        if (bajaCuentaInfo.suspendido && mounted) {
+          await BajaCuentaService.cerrarSesionPorSuspension();
+          Navigator.pushReplacementNamed(
+            context, 
+            '/cuenta-suspendida',
+            arguments: bajaCuentaInfo,
+          );
+          return;
+        }
 
         // Verificar si completó onboarding
         final hasCompleted = await AuthService.hasCompletedOnboarding();

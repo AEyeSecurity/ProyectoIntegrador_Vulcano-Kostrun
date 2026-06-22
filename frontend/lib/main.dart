@@ -53,6 +53,8 @@ import 'models/chat/conversacion_model.dart';
 import 'screens/menu_perfil/calificaciones_pendientes_screen.dart';
 import 'screens/jobs/calificar_trabajo_screen.dart';
 import 'screens/menu_perfil/reputacion/reputacion_detalle_screen.dart'; // ✅ NUEVO
+import 'screens/sign_in/cuenta_suspendida_screen.dart';
+import 'models/menu_perfil/baja_cuenta_model.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -231,7 +233,11 @@ class MyApp extends StatelessWidget {
                 },
               ),
             );
-
+          case '/cuenta-suspendida':
+            final args = settings.arguments as BajaCuentaInfo?;
+            return MaterialPageRoute(
+              builder: (context) => CuentaSuspendidaScreen(bajaCuentaInfo: args),
+            );
           default:
             return null;
         }
