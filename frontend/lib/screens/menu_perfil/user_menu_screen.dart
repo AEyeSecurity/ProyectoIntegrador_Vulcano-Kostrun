@@ -6,6 +6,7 @@ import '../../models/user_model.dart' as AppUser;
 import '../../components/primary_button.dart';
 import '../../services/calificacion_service.dart';
 import 'calificaciones_pendientes_screen.dart';
+import '../../services/baja_cuenta_service.dart';
 
 class UserMenuScreen extends StatefulWidget {
   const UserMenuScreen({Key? key}) : super(key: key);
@@ -17,6 +18,7 @@ class UserMenuScreen extends StatefulWidget {
 class _UserMenuScreenState extends State<UserMenuScreen> {
   AppUser.User? currentUser;
   bool isLoading = true;
+  bool _esAdmin = false;
 
   @override
   void initState() {
@@ -27,9 +29,11 @@ class _UserMenuScreenState extends State<UserMenuScreen> {
   Future<void> _loadUserData() async {
     try {
       final userData = await AuthService.getCurrentUserData();
+      final admin = await BajaCuentaService.esAdmin();
       setState(() {
         currentUser = userData;
         isLoading = false;
+        _esAdmin = admin;
       });
     } catch (e) {
       print('Error cargando datos del usuario: $e');
@@ -93,6 +97,9 @@ class _UserMenuScreenState extends State<UserMenuScreen> {
         break;
       case 'Configuración':
         Navigator.pushNamed(context, '/configuracion');
+        break;
+      case 'Solicitudes':
+        Navigator.pushNamed(context, '/admin-solicitudes');
         break;
 
       default:
@@ -478,6 +485,11 @@ class _UserMenuScreenState extends State<UserMenuScreen> {
         'color': Colors.red
       },
       {'title': 'Configuración', 'icon': Icons.settings, 'color': Colors.grey},
+
+      // ✅ Solo mostrar para administradores
+      if (_esAdmin)
+        {'title': 'Solicitudes', 'icon': Icons.admin_panel_settings, 'color': Colors.deepOrange},
+
     ];
 
     return Column(

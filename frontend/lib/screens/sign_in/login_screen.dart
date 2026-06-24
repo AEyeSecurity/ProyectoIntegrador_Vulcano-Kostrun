@@ -165,11 +165,12 @@ class _LoginScreenState extends State<LoginScreen> {
         // Verificar si completó onboarding
         //final hasCompleted = await AuthService.hasCompletedOnboarding();
 
-        // ✅ NUEVO: Verificar si la cuenta está suspendida por puntuación
+        // ✅ Verificar si la cuenta está suspendida por puntuación
         final bajaCuentaInfo = await BajaCuentaService.verificarEstadoCuenta();
         
         if (bajaCuentaInfo.suspendido && mounted) {
-          await BajaCuentaService.cerrarSesionPorSuspension();
+          // NO cerrar sesión aún - el usuario necesita estar autenticado
+          // para poder solicitar reactivación desde la pantalla de suspensión
           Navigator.pushReplacementNamed(
             context, 
             '/cuenta-suspendida',

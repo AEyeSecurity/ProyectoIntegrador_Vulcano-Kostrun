@@ -55,6 +55,7 @@ import 'screens/jobs/calificar_trabajo_screen.dart';
 import 'screens/menu_perfil/reputacion/reputacion_detalle_screen.dart'; // ✅ NUEVO
 import 'screens/sign_in/cuenta_suspendida_screen.dart';
 import 'models/menu_perfil/baja_cuenta_model.dart';
+import 'screens/menu_perfil/admin_solicitudes_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -283,6 +284,8 @@ class MyApp extends StatelessWidget {
           final rol = ModalRoute.of(context)!.settings.arguments as String;
           return ReputacionDetalleScreen(rol: rol);
         },
+        // Ruta Administrador
+        '/admin-solicitudes': (context) => const AdminSolicitudesScreen(),
         // En la sección de rutas de main.dart, agrega:
 
         '/mis-empleados': (context) => const MisEmpleadosScreen(),

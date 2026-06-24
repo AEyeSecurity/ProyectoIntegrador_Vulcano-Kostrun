@@ -8,10 +8,8 @@ class BajaCuentaService {
   static final _supabase = SupabaseConfig.client;
 
   // ============================================================
-  // 1. VERIFICAR ESTADO DE CUENTA (llama al RPC de Supabase)
+  // 1. VERIFICAR ESTADO DE CUENTA
   // ============================================================
-  /// Verifica si la cuenta del usuario actual está suspendida por puntuación.
-  /// Retorna un BajaCuentaInfo con toda la información de la suspensión.
   static Future<BajaCuentaInfo> verificarEstadoCuenta() async {
     try {
       final userData = await AuthService.getCurrentUserData();
@@ -27,16 +25,15 @@ class BajaCuentaService {
         params: {'p_id_usuario': userData.idUsuario},
       );
 
-      print('📋 Respuesta verificar_estado_cuenta: $response');
+      print('📋 Respuesta verificar estado cuenta: $response');
 
       if (response == null) {
         return BajaCuentaInfo(estado: 'ACTIVO', suspendido: false);
       }
 
-      // La función RPC retorna JSON
       final info = BajaCuentaInfo.fromJson(
-        response is Map<String, dynamic> 
-            ? response 
+        response is Map<String, dynamic>
+            ? response
             : Map<String, dynamic>.from(response as Map),
       );
 
@@ -51,7 +48,6 @@ class BajaCuentaService {
       return info;
     } catch (e) {
       print('❌ Error en verificarEstadoCuenta: $e');
-      // En caso de error, no bloquear al usuario
       return BajaCuentaInfo(estado: 'ACTIVO', suspendido: false);
     }
   }
@@ -59,8 +55,6 @@ class BajaCuentaService {
   // ============================================================
   // 2. VERIFICAR RÁPIDO (solo true/false)
   // ============================================================
-  /// Verificación rápida para usar en guards/middleware.
-  /// Retorna true si la cuenta está suspendida.
   static Future<bool> estaSuspendidoPorPuntuacion() async {
     try {
       final info = await verificarEstadoCuenta();
@@ -74,7 +68,6 @@ class BajaCuentaService {
   // ============================================================
   // 3. CERRAR SESIÓN POR SUSPENSIÓN
   // ============================================================
-  /// Cierra la sesión del usuario suspendido.
   static Future<void> cerrarSesionPorSuspension() async {
     try {
       print('🔒 Cerrando sesión por suspensión de cuenta...');
@@ -86,9 +79,41 @@ class BajaCuentaService {
   }
 
   // ============================================================
-  // 4. OBTENER HISTORIAL DE BAJAS DEL USUARIO
+  // 4. SOLICITAR REACTIVACIÓN
   // ============================================================
-  /// Obtiene el historial de suspensiones del usuario actual.
+  static Future<Map<String, dynamic>> solicitarReactivacion(String mensaje) async {
+    try {
+      final userData = await AuthService.getCurrentUserData();
+      if (userData == null) {
+        return {'exito': false, 'mensaje': 'Usuario no autenticado'};
+      }
+
+      print('📨 Solicitando reactivación para usuario: ${userData.idUsuario}');
+
+      final response = await _supabase.rpc(
+        'solicitar_reactivacion',
+        params: {
+          'p_id_usuario': userData.idUsuario,
+          'p_mensaje': mensaje,
+        },
+      );
+
+      print('📋 Respuesta solicitar reactivación: $response');
+
+      if (response is Map) {
+        return Map<String, dynamic>.from(response);
+      }
+
+      return {'exito': false, 'mensaje': 'Respuesta inesperada del servidor'};
+    } catch (e) {
+      print('❌ Error en solicitarReactivacion: $e');
+      return {'exito': false, 'mensaje': 'Error al enviar solicitud: $e'};
+    }
+  }
+
+  // ============================================================
+  // 5. OBTENER HISTORIAL DE BAJAS
+  // ============================================================
   static Future<List<Map<String, dynamic>>> obtenerHistorialBajas() async {
     try {
       final userData = await AuthService.getCurrentUserData();
@@ -108,9 +133,8 @@ class BajaCuentaService {
   }
 
   // ============================================================
-  // 5. OBTENER CONFIGURACIÓN ACTUAL DE UMBRALES
+  // 6. OBTENER CONFIGURACIÓN ACTUAL
   // ============================================================
-  /// Obtiene los umbrales configurados para mostrar al usuario.
   static Future<Map<String, dynamic>?> obtenerConfiguracion() async {
     try {
       final response = await _supabase
@@ -124,6 +148,106 @@ class BajaCuentaService {
     } catch (e) {
       print('❌ Error en obtenerConfiguracion: $e');
       return null;
+    }
+  }
+
+  // ============================================================
+  // 7. FUNCIONES DE ADMIN
+  // ============================================================
+
+  /// Obtener solicitudes pendientes (solo admin)
+  static Future<List<Map<String, dynamic>>> obtenerSolicitudesPendientes() async {
+    try {
+      final userData = await AuthService.getCurrentUserData();
+      if (userData == null) return [];
+
+      final response = await _supabase.rpc(
+        'obtener_solicitudes_reactivacion',
+        params: {'p_id_admin': userData.idUsuario},
+      );
+
+      if (response is List) {
+        return List<Map<String, dynamic>>.from(
+            response.map((e) => Map<String, dynamic>.from(e as Map)));
+      }
+
+      return [];
+    } catch (e) {
+      print('❌ Error en obtenerSolicitudesPendientes: $e');
+      return [];
+    }
+  }
+
+  /// Aprobar reactivación (solo admin)
+  static Future<Map<String, dynamic>> aprobarReactivacion(int idBaja) async {
+    try {
+      final userData = await AuthService.getCurrentUserData();
+      if (userData == null) {
+        return {'exito': false, 'mensaje': 'No autenticado'};
+      }
+
+      final response = await _supabase.rpc(
+        'aprobar_reactivacion',
+        params: {
+          'p_id_baja': idBaja,
+          'p_id_admin': userData.idUsuario,
+        },
+      );
+
+      if (response is Map) {
+        return Map<String, dynamic>.from(response);
+      }
+      return {'exito': false, 'mensaje': 'Respuesta inesperada'};
+    } catch (e) {
+      print('❌ Error en aprobarReactivacion: $e');
+      return {'exito': false, 'mensaje': 'Error: $e'};
+    }
+  }
+
+  /// Rechazar reactivación (solo admin)
+  static Future<Map<String, dynamic>> rechazarReactivacion(
+      int idBaja, String motivo) async {
+    try {
+      final userData = await AuthService.getCurrentUserData();
+      if (userData == null) {
+        return {'exito': false, 'mensaje': 'No autenticado'};
+      }
+
+      final response = await _supabase.rpc(
+        'rechazar_reactivacion',
+        params: {
+          'p_id_baja': idBaja,
+          'p_id_admin': userData.idUsuario,
+          'p_motivo_rechazo': motivo,
+        },
+      );
+
+      if (response is Map) {
+        return Map<String, dynamic>.from(response);
+      }
+      return {'exito': false, 'mensaje': 'Respuesta inesperada'};
+    } catch (e) {
+      print('❌ Error en rechazarReactivacion: $e');
+      return {'exito': false, 'mensaje': 'Error: $e'};
+    }
+  }
+
+  /// Verificar si el usuario actual es admin
+  static Future<bool> esAdmin() async {
+    try {
+      final userData = await AuthService.getCurrentUserData();
+      if (userData == null) return false;
+
+      final response = await _supabase
+          .from('usuario')
+          .select('es_admin')
+          .eq('id_usuario', userData.idUsuario)
+          .maybeSingle();
+
+      return response?['es_admin'] == true;
+    } catch (e) {
+      print('❌ Error en esAdmin: $e');
+      return false;
     }
   }
 }
