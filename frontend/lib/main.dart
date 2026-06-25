@@ -57,6 +57,9 @@ import 'screens/sign_in/cuenta_suspendida_screen.dart';
 import 'models/menu_perfil/baja_cuenta_model.dart';
 import 'screens/menu_perfil/admin_solicitudes_screen.dart';
 
+import 'screens/menu_perfil/recomendados/agregar_recomendado_screen.dart';
+
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SupabaseConfig.initialize();
@@ -273,6 +276,9 @@ class MyApp extends StatelessWidget {
         '/crear-ubicacion': (context) => const CrearUbicacionScreen(),
         '/mis-rubros': (context) => const MisRubrosScreen(),
         '/calendario': (context) => const CalendarScreen(),
+        
+        // Ruta de recomendados
+        '/agregar-recomendado': (context) => const AgregarRecomendadoScreen(),
 
         // ✅ RUTAS DE CHAT
         '/conversaciones': (context) => const ConversacionesScreen(),

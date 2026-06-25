@@ -4,6 +4,7 @@ import '../../services/user_service.dart';
 import '../../models/user_model.dart';
 import '../../widgets/disponibilidad_switch_universal.dart';
 import '../../widgets/disponibilidad_badge.dart';
+import '../menu_perfil/recomendados/recomendados_section.dart';
 
 class PerfilPrivadoScreen extends StatefulWidget {
   const PerfilPrivadoScreen({Key? key}) : super(key: key);
@@ -552,6 +553,17 @@ class _PerfilPrivadoScreenState extends State<PerfilPrivadoScreen> {
                   ),
                 ),
               ),
+
+              const SizedBox(height: 16),
+
+              // 🏅 Mis Recomendados
+              if (_usuario != null)
+                RecomendadosSection(
+                  idUsuarioPerfil: _usuario!.idUsuario,
+                  esPropioPeril: true,
+                ),
+
+              const SizedBox(height: 80),
             ],
           ),
         ),

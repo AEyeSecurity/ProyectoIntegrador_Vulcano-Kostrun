@@ -2,8 +2,10 @@
 // 🌐 PANTALLA DE PERFIL PÚBLICO (compartido)
 
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/menu_perfil/perfil_service.dart';
 import '../../models/menu_perfil/perfil_model.dart';
+import '../menu_perfil/recomendados/recomendados_section.dart';
 
 class PerfilCompartidoScreen extends StatefulWidget {
   final int userId;
@@ -30,6 +32,7 @@ class _PerfilCompartidoScreenState extends State<PerfilCompartidoScreen> {
   List<ReseniaModel> _resenias = [];
   List<CategoriaModel> _categorias = [];
   bool _esEmpleado = false;
+  int? _idUsuarioLogueado;
 
   @override
   void initState() {
@@ -42,6 +45,20 @@ class _PerfilCompartidoScreenState extends State<PerfilCompartidoScreen> {
 
     try {
       print('🔍 Cargando perfil del usuario: ${widget.userId}');
+
+      // Obtener id del usuario logueado para saber si es propio perfil
+      try {
+        final supabase = Supabase.instance.client;
+        final authUser = supabase.auth.currentUser;
+        if (authUser != null) {
+          final usuarioResp = await supabase
+              .from('usuario')
+              .select('id_usuario')
+              .eq('auth_user_id', authUser.id)
+              .single();
+          _idUsuarioLogueado = usuarioResp['id_usuario'] as int;
+        }
+      } catch (_) {}
 
       final datosBasicos =
           await _perfilService.getDatosBasicosUsuario(widget.userId);
@@ -153,6 +170,11 @@ class _PerfilCompartidoScreenState extends State<PerfilCompartidoScreen> {
                     if (_categorias.isNotEmpty) _buildCategorias(),
                     if (_categorias.isNotEmpty) const SizedBox(height: 20),
                     _buildResenias(),
+                    const SizedBox(height: 20),
+                    RecomendadosSection(
+                      idUsuarioPerfil: widget.userId,
+                      esPropioPeril: _idUsuarioLogueado == widget.userId,
+                    ),
                     const SizedBox(height: 80),
                   ],
                 ),
