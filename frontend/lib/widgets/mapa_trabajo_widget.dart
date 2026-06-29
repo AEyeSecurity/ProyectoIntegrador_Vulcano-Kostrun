@@ -147,19 +147,26 @@ class _MapaTrabajoWidgetState extends State<MapaTrabajoWidget> {
                     ? _buildMapaSinUbicacion(posicionTrabajo)
                     : GoogleMap(
                         initialCameraPosition: CameraPosition(
-                          target: posicionTrabajo,
-                          zoom: 14,
+                          target: _posicionActual != null
+                              ? LatLng(
+                                  (widget.latitudTrabajo +
+                                          _posicionActual!.latitude) /
+                                      2,
+                                  (widget.longitudTrabajo +
+                                          _posicionActual!.longitude) /
+                                      2,
+                                )
+                              : posicionTrabajo,
+                          zoom: _posicionActual != null ? 11 : 14,
                         ),
                         onMapCreated: (controller) {
                           if (_posicionActual != null) {
+                            final bounds = _calcularBounds();
                             Future.delayed(
-                              const Duration(milliseconds: 300),
+                              const Duration(milliseconds: 500),
                               () {
                                 controller.animateCamera(
-                                  CameraUpdate.newLatLngBounds(
-                                    _calcularBounds(),
-                                    50,
-                                  ),
+                                  CameraUpdate.newLatLngBounds(bounds, 60),
                                 );
                               },
                             );
@@ -192,7 +199,7 @@ class _MapaTrabajoWidgetState extends State<MapaTrabajoWidget> {
                             ),
                         },
                         myLocationEnabled: false,
-                        zoomControlsEnabled: false,
+                        zoomControlsEnabled: true,
                         mapToolbarEnabled: false,
                         liteModeEnabled: false,
                       ),
