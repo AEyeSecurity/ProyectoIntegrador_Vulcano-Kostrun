@@ -192,9 +192,9 @@ class _MapaTrabajoWidgetState extends State<MapaTrabajoWidget> {
                                 _posicionActual!.longitude,
                               ),
                               infoWindow:
-                                  const InfoWindow(title: 'Tu ubicación'),
+                                  const InfoWindow(title: '📍 Estás acá'),
                               icon: BitmapDescriptor.defaultMarkerWithHue(
-                                BitmapDescriptor.hueBlue,
+                                BitmapDescriptor.hueGreen,
                               ),
                             ),
                         },
