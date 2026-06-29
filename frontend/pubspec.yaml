@@ -20,6 +20,7 @@ dependencies:
   geolocator: ^13.0.2
   geocoding: ^3.0.0
   permission_handler: ^11.0.0
+  url_launcher: ^6.2.0
   
   # UI Components
   cupertino_icons: ^1.0.6

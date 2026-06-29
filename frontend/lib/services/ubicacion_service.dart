@@ -1,12 +1,13 @@
-//frontend/lib/services/ubicacion_service.dart
-import 'package:geocoding/geocoding.dart';
+import 'dart:convert';
 import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class UbicacionService {
   final _supabase = Supabase.instance.client;
+  static const String _apiKey = 'AIzaSyDZ4kxXE3BenwTktcn1ppWE1WJ4ve__ulU';
 
-  /// Convierte una dirección de texto a coordenadas (lat/lng)
+  /// Convierte una dirección de texto a coordenadas usando Google Geocoding API
   Future<Map<String, double>?> geocodificarDireccion({
     required String calle,
     required String numero,
@@ -16,14 +17,23 @@ class UbicacionService {
     try {
       final direccionCompleta =
           '$calle $numero, $ciudad, $provincia, Argentina';
-      List<Location> locations =
-          await locationFromAddress(direccionCompleta);
+      final url =
+          'https://maps.googleapis.com/maps/api/geocode/json?'
+          'address=${Uri.encodeComponent(direccionCompleta)}'
+          '&key=$_apiKey';
 
-      if (locations.isNotEmpty) {
-        return {
-          'latitud': locations.first.latitude,
-          'longitud': locations.first.longitude,
-        };
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+
+        if (data['status'] == 'OK' && data['results'].isNotEmpty) {
+          final location = data['results'][0]['geometry']['location'];
+          return {
+            'latitud': location['lat'].toDouble(),
+            'longitud': location['lng'].toDouble(),
+          };
+        }
       }
       return null;
     } catch (e) {
@@ -84,7 +94,7 @@ class UbicacionService {
         1000;
   }
 
-  /// Obtiene una ubicación por su ID con lat/lng, geocodificando si es necesario
+  /// Obtiene una ubicación por su ID, geocodificando si no tiene coordenadas
   Future<Map<String, dynamic>?> obtenerUbicacionConCoordenadas(
       int idUbicacion) async {
     try {
@@ -94,7 +104,7 @@ class UbicacionService {
           .eq('id_ubicacion', idUbicacion)
           .single();
 
-      // Si no tiene coordenadas, intentamos geocodificar
+      // Si no tiene coordenadas, geocodificar automáticamente
       if (ubicacion['latitud'] == null || ubicacion['longitud'] == null) {
         final coords = await geocodificarDireccion(
           calle: ubicacion['calle'] ?? '',
