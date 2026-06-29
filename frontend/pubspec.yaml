@@ -16,6 +16,10 @@ dependencies:
   image_picker: ^1.0.7
   image_picker_web: ^3.1.1
   image_picker_platform_interface: ^2.9.1
+  google_maps_flutter: ^2.5.0
+  geolocator: ^13.0.2
+  geocoding: ^3.0.0
+  permission_handler: ^11.0.0
   
   # UI Components
   cupertino_icons: ^1.0.6

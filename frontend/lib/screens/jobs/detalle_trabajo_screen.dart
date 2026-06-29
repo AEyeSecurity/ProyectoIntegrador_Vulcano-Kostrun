@@ -13,6 +13,9 @@ import '../../models/empleado_empresa_model.dart';
 import '../../services/empleado_empresa_service.dart';
 import '../../models/postulacion_model.dart';
 
+import '../../widgets/mapa_trabajo_widget.dart';
+import '../../services/ubicacion_service.dart';
+
 class DetalleTrabajoScreen extends StatefulWidget {
   final TrabajoModel trabajo;
 
@@ -28,6 +31,9 @@ class DetalleTrabajoScreen extends StatefulWidget {
 class _DetalleTrabajoScreenState extends State<DetalleTrabajoScreen> {
   final ChatService _chatService = ChatService();
   final UserService _userService = UserService();
+  final UbicacionService _ubicacionService = UbicacionService();
+  Map<String, dynamic>? _ubicacionData;
+  bool _cargandoUbicacion = true;
 
   String? _postulacionId;
   bool _isPostulating = false;
@@ -41,6 +47,7 @@ class _DetalleTrabajoScreenState extends State<DetalleTrabajoScreen> {
     super.initState();
     _verificarPostulacion();
     _verificarSiEsEmpleado();
+    _cargarUbicacion();
   }
 
   Future<void> _verificarSiEsEmpleado() async {
@@ -71,6 +78,27 @@ class _DetalleTrabajoScreenState extends State<DetalleTrabajoScreen> {
     final resultado = await Navigator.pushNamed(context, '/unirse-empleados');
     if (resultado == true && mounted) {
       await _verificarSiEsEmpleado();
+    }
+  }
+
+Future<void> _cargarUbicacion() async {
+  print('🗺️ DEBUG ubicacionId: ${widget.trabajo.ubicacionId}');
+    try {
+      if (widget.trabajo.ubicacionId != null) {
+        final ubicacion = await _ubicacionService
+            .obtenerUbicacionConCoordenadas(widget.trabajo.ubicacionId!);
+        if (mounted) {
+          setState(() {
+            _ubicacionData = ubicacion;
+            _cargandoUbicacion = false;
+          });
+        }
+      } else {
+        setState(() => _cargandoUbicacion = false);
+      }
+    } catch (e) {
+      print('Error cargando ubicación: $e');
+      if (mounted) setState(() => _cargandoUbicacion = false);
     }
   }
 
@@ -490,7 +518,7 @@ class _DetalleTrabajoScreenState extends State<DetalleTrabajoScreen> {
     );
   }
 
-  Widget _buildUbicacion() {
+Widget _buildUbicacion() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -519,24 +547,42 @@ class _DetalleTrabajoScreenState extends State<DetalleTrabajoScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              Container(
-                height: 120,
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.map, size: 48, color: Colors.grey[400]),
-                      const SizedBox(height: 8),
-                      Text('Mapa próximamente',
-                          style: TextStyle(color: Colors.grey[600])),
-                    ],
+              if (_cargandoUbicacion)
+                Container(
+                  height: 200,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Center(child: CircularProgressIndicator()),
+                )
+              else if (_ubicacionData != null &&
+                  _ubicacionData!['latitud'] != null &&
+                  _ubicacionData!['longitud'] != null)
+                MapaTrabajoWidget(
+                  latitudTrabajo: _ubicacionData!['latitud'],
+                  longitudTrabajo: _ubicacionData!['longitud'],
+                  direccionTrabajo: widget.trabajo.direccionCompleta ?? '',
+                )
+              else
+                Container(
+                  height: 120,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.map, size: 48, color: Colors.grey[400]),
+                        const SizedBox(height: 8),
+                        Text('Ubicación no disponible',
+                            style: TextStyle(color: Colors.grey[600])),
+                      ],
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
