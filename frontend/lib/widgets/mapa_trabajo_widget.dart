@@ -180,9 +180,8 @@ class _MapaTrabajoWidgetState extends State<MapaTrabajoWidget> {
                               title: 'Lugar de trabajo',
                               snippet: widget.direccionTrabajo,
                             ),
-                            icon: BitmapDescriptor.defaultMarkerWithHue(
-                              BitmapDescriptor.hueRed,
-                            ),
+                            icon: BitmapDescriptor.defaultMarkerWithHue(210),
+                          
                           ),
                           if (_posicionActual != null)
                             Marker(
