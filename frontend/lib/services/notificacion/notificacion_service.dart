@@ -172,9 +172,8 @@ class NotificacionService {
       await supabase.from('notificacion').insert({
         'id_usuario': usuarioId,
         'tipo': tipo,
+        'titulo': tipo,
         'mensaje': mensaje,
-        'trabajo_id': trabajoId,
-        'postulacion_id': postulacionId,
         'estado': 'NO_LEIDA',
         'fecha': DateTime.now().toIso8601String(),
       });

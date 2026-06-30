@@ -12,9 +12,9 @@ import '../menu_perfil/calificaciones_pendientes_screen.dart';
 import '../../models/empleado_empresa_model.dart';
 import '../../services/empleado_empresa_service.dart';
 import '../../models/postulacion_model.dart';
-
 import '../../widgets/mapa_trabajo_widget.dart';
 import '../../services/ubicacion_service.dart';
+import '../../services/notificacion/notificacion_service.dart';
 
 class DetalleTrabajoScreen extends StatefulWidget {
   final TrabajoModel trabajo;
@@ -38,6 +38,7 @@ class _DetalleTrabajoScreenState extends State<DetalleTrabajoScreen> {
   String? _postulacionId;
   bool _isPostulating = false;
   bool _isAlreadyPostulated = false;
+  String? _estadoPostulacion; // null = no postulado, 'PENDIENTE', 'ACEPTADO', 'RECHAZADO'
   bool _isEmpleado = false;
   bool _isCheckingEmpleado = true;
   bool _isSubmitting = false;
@@ -81,8 +82,8 @@ class _DetalleTrabajoScreenState extends State<DetalleTrabajoScreen> {
     }
   }
 
-Future<void> _cargarUbicacion() async {
-  print('🗺️ DEBUG ubicacionId: ${widget.trabajo.ubicacionId}');
+  Future<void> _cargarUbicacion() async {
+    print('🗺️ DEBUG ubicacionId: ${widget.trabajo.ubicacionId}');
     try {
       if (widget.trabajo.ubicacionId != null) {
         final ubicacion = await _ubicacionService
@@ -104,9 +105,12 @@ Future<void> _cargarUbicacion() async {
 
   Future<void> _verificarPostulacion() async {
     try {
-      final yaPostulado =
-          await PostulacionService.yaEstaPostulado(widget.trabajo.id);
-      setState(() => _isAlreadyPostulated = yaPostulado);
+      final estado =
+          await PostulacionService.obtenerEstadoPostulacion(widget.trabajo.id);
+      setState(() {
+        _estadoPostulacion = estado;
+        _isAlreadyPostulated = estado != null;
+      });
     } catch (e) {
       print('Error verificando postulación: $e');
     }
@@ -156,6 +160,39 @@ Future<void> _cargarUbicacion() async {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error al abrir chat: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _enviarAvisoEmpleador(String mensajeParcial) async {
+    try {
+      final userData = await AuthService.getCurrentUserData();
+      final nombre = userData?.displayName ?? 'El empleado';
+
+      await NotificacionService.crearNotificacion(
+        usuarioId: widget.trabajo.empleadorId,
+        tipo: 'TRABAJO',
+        mensaje: '$nombre $mensajeParcial',
+        trabajoId: widget.trabajo.id,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Aviso enviado al empleador'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al enviar aviso: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -518,7 +555,7 @@ Future<void> _cargarUbicacion() async {
     );
   }
 
-Widget _buildUbicacion() {
+  Widget _buildUbicacion() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -786,6 +823,43 @@ Widget _buildUbicacion() {
         builder: (context, snapshot) {
           final esEmpresa = snapshot.data ?? false;
 
+          Color bgColor;
+          Color borderColor;
+          Color iconBgColor;
+          IconData icono;
+          String titulo;
+          String subtitulo;
+
+          switch (_estadoPostulacion?.toUpperCase()) {
+            case 'ACEPTADO':
+              bgColor = Colors.green.shade50;
+              borderColor = Colors.green.shade300;
+              iconBgColor = Colors.green;
+              icono = Icons.verified;
+              titulo = esEmpresa ? '¡Postulación aceptada!' : '¡Fuiste aceptado!';
+              subtitulo = esEmpresa
+                  ? 'El empleador aceptó tu postulación'
+                  : 'El empleador aceptó tu solicitud';
+              break;
+            case 'RECHAZADO':
+              bgColor = Colors.red.shade50;
+              borderColor = Colors.red.shade300;
+              iconBgColor = Colors.red;
+              icono = Icons.cancel;
+              titulo = 'Solicitud rechazada';
+              subtitulo = 'El empleador no seleccionó tu postulación';
+              break;
+            default: // PENDIENTE
+              bgColor = Colors.green.shade50;
+              borderColor = Colors.green.shade300;
+              iconBgColor = Colors.green;
+              icono = Icons.check_circle;
+              titulo = esEmpresa ? '¡Ya postulaste empleados!' : '¡Ya te postulaste!';
+              subtitulo = esEmpresa
+                  ? 'Gestiona tus postulaciones abajo'
+                  : 'El empleador verá tu postulación';
+          }
+
           return Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -804,22 +878,19 @@ Widget _buildUbicacion() {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Colors.green.shade50, Colors.green.shade100],
-                      ),
+                      color: bgColor,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.green.shade300),
+                      border: Border.all(color: borderColor),
                     ),
                     child: Row(
                       children: [
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: Colors.green,
+                            color: iconBgColor,
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Icon(Icons.check_circle,
-                              color: Colors.white, size: 24),
+                          child: Icon(icono, color: Colors.white, size: 24),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -827,9 +898,7 @@ Widget _buildUbicacion() {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                esEmpresa
-                                    ? '¡Ya postulaste empleados!'
-                                    : '¡Ya te postulaste!',
+                                titulo,
                                 style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -838,9 +907,7 @@ Widget _buildUbicacion() {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                esEmpresa
-                                    ? 'Gestiona tus postulaciones abajo'
-                                    : 'El empleador verá tu postulación',
+                                subtitulo,
                                 style: const TextStyle(
                                     fontSize: 13, color: Colors.black54),
                               ),
@@ -851,10 +918,11 @@ Widget _buildUbicacion() {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  if (esEmpresa)
-                    _buildGestionPostulacionesEmpresa()
-                  else
-                    _buildBotonesPersona(),
+                  if (_estadoPostulacion?.toUpperCase() != 'RECHAZADO')
+                    if (esEmpresa)
+                      _buildGestionPostulacionesEmpresa()
+                    else
+                      _buildBotonesPersona(),
                 ],
               ),
             ),
@@ -1018,22 +1086,79 @@ Widget _buildUbicacion() {
   }
 
   Widget _buildBotonesPersona() {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: _abrirChatEmpleado,
-        icon: const Icon(Icons.chat_bubble, size: 22),
-        label: const Text(
-          'Chatear con el empleador',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+    return Column(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: _abrirChatEmpleado,
+            icon: const Icon(Icons.chat_bubble, size: 22),
+            label: const Text(
+              'Chatear con el empleador',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFC5414B),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              minimumSize: const Size(double.infinity, 56),
+            ),
+          ),
         ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFFC5414B),
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          minimumSize: const Size(double.infinity, 56),
+        if (_estadoPostulacion?.toUpperCase() == 'ACEPTADO') ...[
+          const SizedBox(height: 12),
+          _buildBotonesAvisoEmpleador(),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildBotonesAvisoEmpleador() {
+    final botones = [
+      {
+        'label': '🚶 Yendo',
+        'mensaje': 'está en camino hacia el trabajo',
+        'color': Colors.blue
+      },
+      {
+        'label': '📍 Llegando',
+        'mensaje': 'está llegando al lugar',
+        'color': Colors.orange
+      },
+      {
+        'label': '🔔 Afuera',
+        'mensaje': 'está afuera esperando',
+        'color': Colors.green
+      },
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Avisar al empleador',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[600],
+          ),
         ),
-      ),
+        const SizedBox(height: 8),
+        Row(
+          children: botones.map((b) {
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: _BotonAvisoEstado(
+                  label: b['label'] as String,
+                  color: b['color'] as Color,
+                  onTap: () => _enviarAvisoEmpleador(b['mensaje'] as String),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 
@@ -1140,18 +1265,8 @@ Widget _buildUbicacion() {
 
   String _formatDate(DateTime date) {
     final months = [
-      'Ene',
-      'Feb',
-      'Mar',
-      'Abr',
-      'May',
-      'Jun',
-      'Jul',
-      'Ago',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dic'
+      'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+      'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'
     ];
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
@@ -1474,7 +1589,6 @@ Widget _buildUbicacion() {
                     const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton.icon(
-                        // ✅ CORREGIDO: Pop DESPUÉS del await, no antes
                         onPressed: (userData?.isEmpresa == true &&
                                 empleadosSeleccionados.isEmpty)
                             ? null
@@ -1509,7 +1623,6 @@ Widget _buildUbicacion() {
                                       }
                                     }
 
-                                    // ✅ Pop DESPUÉS de intentar todos
                                     if (mounted) Navigator.pop(context);
 
                                     if (mounted) {
@@ -1547,7 +1660,6 @@ Widget _buildUbicacion() {
                                       }
                                     }
                                   } else {
-                                    // PERSONA
                                     await PostulacionService.postularse(
                                       trabajoId: widget.trabajo.id,
                                       mensaje:
@@ -1556,7 +1668,6 @@ Widget _buildUbicacion() {
                                               : messageController.text.trim(),
                                     );
 
-                                    // ✅ Pop DESPUÉS de postular exitosamente
                                     if (mounted) Navigator.pop(context);
 
                                     if (mounted) {
@@ -1573,7 +1684,6 @@ Widget _buildUbicacion() {
                                     }
                                   }
                                 } catch (e) {
-                                  // ✅ Error general: cerrar modal Y mostrar mensaje
                                   if (mounted) Navigator.pop(context);
                                   if (mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
@@ -1605,6 +1715,74 @@ Widget _buildUbicacion() {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ✅ Widget auxiliar fuera de la clase principal
+class _BotonAvisoEstado extends StatefulWidget {
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _BotonAvisoEstado({
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  State<_BotonAvisoEstado> createState() => _BotonAvisoEstadoState();
+}
+
+class _BotonAvisoEstadoState extends State<_BotonAvisoEstado> {
+  bool _enviando = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _enviando
+          ? null
+          : () async {
+              setState(() => _enviando = true);
+              widget.onTap();
+              await Future.delayed(const Duration(seconds: 2));
+              if (mounted) setState(() => _enviando = false);
+            },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: _enviando
+              ? widget.color.withOpacity(0.3)
+              : widget.color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: widget.color.withOpacity(0.5),
+            width: 1.5,
+          ),
+        ),
+        child: Center(
+          child: _enviando
+              ? SizedBox(
+                  height: 16,
+                  width: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: widget.color,
+                  ),
+                )
+              : Text(
+                  widget.label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: widget.color,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
         ),
       ),
     );
