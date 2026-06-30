@@ -7,6 +7,8 @@ import '../../services/postulacion_service.dart';
 import '../../theme/estado_trabajo_style.dart';
 import '../../services/menu_perfil/trabajo_foto_service.dart';
 import '../../models/menu_perfil/trabajo_foto_model.dart';
+import '../../services/ubicacion_service.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class DetalleTrabajoPropio extends StatefulWidget {
   final TrabajoModel trabajo;
@@ -27,12 +29,16 @@ bool _loadingFotos = true;
 class _DetalleTrabajoPropioState extends State<DetalleTrabajoPropio> {
   int _cantidadPostulaciones = 0;
   bool _isLoading = true;
+final UbicacionService _ubicacionService = UbicacionService();
+  Map<String, dynamic>? _ubicacionData;
+  bool _cargandoUbicacion = true;
 
   @override
   void initState() {
     super.initState();
     _cargarPostulaciones();
     _cargarFotos();
+    _cargarUbicacion();
   }
 
   Future<void> _cargarPostulaciones() async {
@@ -103,6 +109,26 @@ class _DetalleTrabajoPropioState extends State<DetalleTrabajoPropio> {
         _fotos = fotos;
         _loadingFotos = false;
       });
+    }
+  }
+
+  Future<void> _cargarUbicacion() async {
+    try {
+      if (widget.trabajo.ubicacionId != null) {
+        final ubicacion = await _ubicacionService
+            .obtenerUbicacionConCoordenadas(widget.trabajo.ubicacionId!);
+        if (mounted) {
+          setState(() {
+            _ubicacionData = ubicacion;
+            _cargandoUbicacion = false;
+          });
+        }
+      } else {
+        setState(() => _cargandoUbicacion = false);
+      }
+    } catch (e) {
+      print('Error cargando ubicación: $e');
+      if (mounted) setState(() => _cargandoUbicacion = false);
     }
   }
 
@@ -664,17 +690,14 @@ class _DetalleTrabajoPropioState extends State<DetalleTrabajoPropio> {
     );
   }
 
-  Widget _buildUbicacion() {
+Widget _buildUbicacion() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
           '📍 Ubicación',
           style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
+              fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
         ),
         const SizedBox(height: 12),
         Container(
@@ -696,26 +719,71 @@ class _DetalleTrabajoPropioState extends State<DetalleTrabajoPropio> {
                 ),
               ),
               const SizedBox(height: 12),
-              Container(
-                height: 120,
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.map, size: 48, color: Colors.grey[400]),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Mapa próximamente',
-                        style: TextStyle(color: Colors.grey[600]),
+              if (_cargandoUbicacion)
+                Container(
+                  height: 200,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Center(child: CircularProgressIndicator()),
+                )
+              else if (_ubicacionData != null &&
+                  _ubicacionData!['latitud'] != null &&
+                  _ubicacionData!['longitud'] != null)
+                SizedBox(
+                  height: 200,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: GoogleMap(
+                      initialCameraPosition: CameraPosition(
+                        target: LatLng(
+                          _ubicacionData!['latitud'],
+                          _ubicacionData!['longitud'],
+                        ),
+                        zoom: 15,
                       ),
-                    ],
+                      markers: {
+                        Marker(
+                          markerId: const MarkerId('trabajo'),
+                          position: LatLng(
+                            _ubicacionData!['latitud'],
+                            _ubicacionData!['longitud'],
+                          ),
+                          infoWindow: InfoWindow(
+                            title: 'Tu publicación',
+                            snippet: widget.trabajo.direccionCompleta ?? '',
+                          ),
+                          icon: BitmapDescriptor.defaultMarkerWithHue(
+                            BitmapDescriptor.hueRed,
+                          ),
+                        ),
+                      },
+                      myLocationEnabled: false,
+                      zoomControlsEnabled: true,
+                      mapToolbarEnabled: false,
+                    ),
+                  ),
+                )
+              else
+                Container(
+                  height: 120,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.map, size: 48, color: Colors.grey[400]),
+                        const SizedBox(height: 8),
+                        Text('Ubicación no disponible',
+                            style: TextStyle(color: Colors.grey[600])),
+                      ],
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
