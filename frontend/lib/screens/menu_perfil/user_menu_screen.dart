@@ -98,8 +98,14 @@ class _UserMenuScreenState extends State<UserMenuScreen> {
       case 'Configuración':
         Navigator.pushNamed(context, '/configuracion');
         break;
+      case 'Mis Certificados':
+        Navigator.pushNamed(context, '/mis-certificados');
+        break;
       case 'Solicitudes':
         Navigator.pushNamed(context, '/admin-solicitudes');
+        break;
+      case 'Certificados Pendientes':
+        Navigator.pushNamed(context, '/admin-certificados');
         break;
 
       default:
@@ -483,12 +489,16 @@ class _UserMenuScreenState extends State<UserMenuScreen> {
         'title': 'Calendario',
         'icon': Icons.calendar_today,
         'color': Colors.red
-      },
+      },  
       {'title': 'Configuración', 'icon': Icons.settings, 'color': Colors.grey},
+      if (!esEmpresa && (currentUser?.persona?.esEmpleado ?? false))
+        {'title': 'Mis Certificados', 'icon': Icons.verified_user, 'color': Colors.teal},
 
       // ✅ Solo mostrar para administradores
       if (_esAdmin)
         {'title': 'Solicitudes', 'icon': Icons.admin_panel_settings, 'color': Colors.deepOrange},
+      if (_esAdmin)
+        {'title': 'Certificados Pendientes', 'icon': Icons.verified, 'color': Colors.deepPurple},
 
     ];
 

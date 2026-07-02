@@ -2,9 +2,11 @@
 // 🌐 PANTALLA DE PERFIL PÚBLICO (compartido)
 
 import 'package:flutter/material.dart';
-import '../../services/menu_perfil/perfil_service.dart';
-import '../../models/menu_perfil/perfil_model.dart';
-
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/menu_perfil/perfil_service.dart';
+import 'menu_perfil/perfil_model.dart';
+import '../screens/menu_perfil/recomendados/recomendados_section.dart';
+import '../services/certificado_service.dart';
 class PerfilCompartidoScreen extends StatefulWidget {
   final int userId;
 
@@ -19,16 +21,19 @@ class PerfilCompartidoScreen extends StatefulWidget {
 
 class _PerfilCompartidoScreenState extends State<PerfilCompartidoScreen> {
   final PerfilService _perfilService = PerfilService();
-  
+
   bool _isLoading = true;
   String _nombre = '';
   String? _ubicacion;
+  String? _fotoPerfil;
   double _calificacionPromedio = 0.0;
   int _totalResenias = 0;
   int _trabajosCompletados = 0;
   List<ReseniaModel> _resenias = [];
   List<CategoriaModel> _categorias = [];
   bool _esEmpleado = false;
+  int? _idUsuarioLogueado;
+  List<Map<String, dynamic>> _certificadosVerificados = [];
 
   @override
   void initState() {
@@ -37,111 +42,99 @@ class _PerfilCompartidoScreenState extends State<PerfilCompartidoScreen> {
   }
 
   Future<void> _cargarDatosPerfil() async {
-  setState(() => _isLoading = true);
+    setState(() => _isLoading = true);
 
-  try {
-    print('🔍 Cargando perfil del usuario: ${widget.userId}');
-    
-    final datosBasicos = await _perfilService.getDatosBasicosUsuario(widget.userId);
-    print('📊 datosBasicos recibidos: $datosBasicos');
-    
-    String nombreCompleto = '';
-    
-    // ✅ HELPER para verificar si un dato tiene contenido
-    bool tieneContenido(dynamic data) {
-      if (data == null) return false;
-      if (data is List) return data.isNotEmpty;
-      if (data is Map) return data.isNotEmpty;
-      return true;
-    }
-    
-    // ✅ PRIMERO verificar usuario_empresa Y que tenga contenido
-    if (tieneContenido(datosBasicos['usuario_empresa'])) {
-      final empresaData = datosBasicos['usuario_empresa'];
-      print('   🏢 Tiene usuario_empresa');
-      print('      Tipo: ${empresaData.runtimeType}');
-      print('      Valor: $empresaData');
-      
-      final empresa = empresaData is List && empresaData.isNotEmpty
-          ? empresaData[0]
-          : empresaData;
-          
-      if (empresa != null && empresa is Map<String, dynamic>) {
-        nombreCompleto = empresa['nombre_corporativo']?.toString() ?? '';
-        print('      ✅ Nombre empresa: "$nombreCompleto"');
-      }
-    }
-    // ✅ SI NO ES EMPRESA, verificar usuario_persona Y que tenga contenido
-    else if (tieneContenido(datosBasicos['usuario_persona'])) {
-      final personaData = datosBasicos['usuario_persona'];
-      print('   👤 Tiene usuario_persona');
-      print('      Tipo: ${personaData.runtimeType}');
-      print('      Valor: $personaData');
-      
-      final persona = personaData is List && personaData.isNotEmpty
-          ? personaData[0]
-          : personaData;
-          
-      if (persona != null && persona is Map<String, dynamic>) {
-        final nombre = persona['nombre']?.toString() ?? '';
-        final apellido = persona['apellido']?.toString() ?? '';
-        nombreCompleto = '$nombre $apellido'.trim();
-        print('      ✅ Nombre construido: "$nombreCompleto"');
-      }
-    }
-    
-    if (nombreCompleto.isEmpty) {
-      nombreCompleto = 'Usuario';
-      print('   ⚠️ No se encontró nombre, usando fallback: "$nombreCompleto"');
-    }
-    
-    _nombre = nombreCompleto;
-    print('🎯 Nombre final asignado: "$_nombre"');
-
-    // ✅ Cargar reseñas con try-catch
     try {
+      print('🔍 Cargando perfil del usuario: ${widget.userId}');
+
+      // Obtener id del usuario logueado para saber si es propio perfil
+      try {
+        final supabase = Supabase.instance.client;
+        final authUser = supabase.auth.currentUser;
+        if (authUser != null) {
+          final usuarioResp = await supabase
+              .from('usuario')
+              .select('id_usuario')
+              .eq('auth_user_id', authUser.id)
+              .single();
+          _idUsuarioLogueado = usuarioResp['id_usuario'] as int;
+        }
+      } catch (_) {}
+
+      final datosBasicos =
+          await _perfilService.getDatosBasicosUsuario(widget.userId);
+      print('📊 datosBasicos recibidos: $datosBasicos');
+
+      String nombreCompleto = '';
+
+      if (datosBasicos['usuario_persona'] != null) {
+        print('   👤 Tiene usuario_persona');
+        final personaData = datosBasicos['usuario_persona'];
+        final persona = personaData is List && (personaData as List).isNotEmpty
+            ? personaData[0]
+            : personaData;
+
+        if (persona != null && persona is Map<String, dynamic>) {
+          final nombre = persona['nombre']?.toString() ?? '';
+          final apellido = persona['apellido']?.toString() ?? '';
+          nombreCompleto = '$nombre $apellido'.trim();
+          _fotoPerfil = persona['foto_perfil_url']?.toString();
+          print('      ✅ Nombre construido: "$nombreCompleto"');
+        }
+      } else if (datosBasicos['usuario_empresa'] != null) {
+        print('   🏢 Tiene usuario_empresa');
+        final empresaData = datosBasicos['usuario_empresa'];
+        final empresa = empresaData is List && (empresaData as List).isNotEmpty
+            ? empresaData[0]
+            : empresaData;
+
+        if (empresa != null && empresa is Map<String, dynamic>) {
+          nombreCompleto = empresa['nombre_corporativo']?.toString() ?? '';
+          _fotoPerfil = empresa['logo_url']?.toString();
+          print('      ✅ Nombre empresa: "$nombreCompleto"');
+        }
+      }
+
+      if (nombreCompleto.isEmpty) {
+        nombreCompleto = 'Usuario';
+      }
+
+      _nombre = nombreCompleto;
+
       _resenias = await _perfilService.getReseniasUsuario(widget.userId);
       _totalResenias = _resenias.length;
-      _calificacionPromedio = await _perfilService.getPromedioCalificacion(widget.userId);
-    } catch (e) {
-      print('⚠️ No se pudieron cargar reseñas: $e');
-      _resenias = [];
-      _totalResenias = 0;
-      _calificacionPromedio = 0.0;
-    }
-
-    _ubicacion = await _perfilService.getUbicacionUsuario(widget.userId);
-
-    try {
+      _calificacionPromedio =
+          await _perfilService.getPromedioCalificacion(widget.userId);
+      _ubicacion = await _perfilService.getUbicacionUsuario(widget.userId);
       _esEmpleado = await _perfilService.esEmpleado(widget.userId);
-    } catch (e) {
-      print('⚠️ Error verificando empleado: $e');
-      _esEmpleado = false;
-    }
 
-    if (_esEmpleado) {
-      try {
+      if (_esEmpleado) {
         _categorias = await _perfilService.getCategoriasEmpleado(widget.userId);
-        _trabajosCompletados = await _perfilService.contarTrabajosCompletados(widget.userId);
-      } catch (e) {
-        print('⚠️ Error cargando datos de empleado: $e');
-        _categorias = [];
-        _trabajosCompletados = 0;
+        _trabajosCompletados =
+            await _perfilService.contarTrabajosCompletados(widget.userId);
       }
-    }
 
-    print('✅ Perfil cargado completamente');
-    setState(() => _isLoading = false);
-    
-  } catch (e, stackTrace) {
-    print('❌ ERROR cargando perfil: $e');
-    print('   Stack trace: $stackTrace');
-    setState(() {
-      _isLoading = false;
-      _nombre = 'Error al cargar';
-    });
+      // Cargar certificados verificados
+      try {
+        _certificadosVerificados = await CertificadoService()
+            .obtenerCertificadosVerificados(widget.userId);
+        print('DEBUG certificados verificados: $_certificadosVerificados');
+      } catch (e) {
+        print('⚠️ Error cargando certificados: $e');
+        _certificadosVerificados = [];
+      }
+
+      print('✅ Perfil cargado completamente');
+      setState(() => _isLoading = false);
+    } catch (e, stackTrace) {
+      print('❌ ERROR cargando perfil: $e');
+      print('   Stack trace: $stackTrace');
+      setState(() {
+        _isLoading = false;
+        _nombre = 'Error al cargar';
+      });
+    }
   }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -187,33 +180,33 @@ class _PerfilCompartidoScreenState extends State<PerfilCompartidoScreen> {
                     const SizedBox(height: 20),
                     if (_categorias.isNotEmpty) _buildCategorias(),
                     if (_categorias.isNotEmpty) const SizedBox(height: 20),
+                    if (_certificadosVerificados.isNotEmpty) _buildCertificados(),
+                    if (_certificadosVerificados.isNotEmpty) const SizedBox(height: 20),
                     _buildResenias(),
+                    const SizedBox(height: 20),
+                    RecomendadosSection(
+                      idUsuarioPerfil: widget.userId,
+                      esPropioPeril: _idUsuarioLogueado == widget.userId,
+                    ),
                     const SizedBox(height: 80),
                   ],
                 ),
               ),
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Chat próximamente')),
-          );
-        },
-        backgroundColor: const Color(0xFFC5414B),
-        icon: const Icon(Icons.chat_bubble_outline),
-        label: const Text('Contactar'),
-      ),
     );
   }
 
   Widget _buildHeader() {
     String getIniciales() {
-      if (_nombre.isEmpty || _nombre == 'Usuario' || _nombre == 'Error al cargar') {
+      if (_nombre.isEmpty ||
+          _nombre == 'Usuario' ||
+          _nombre == 'Error al cargar') {
         return '?';
       }
-      
       final palabras = _nombre.split(' ');
-      if (palabras.length >= 2 && palabras[0].isNotEmpty && palabras[1].isNotEmpty) {
+      if (palabras.length >= 2 &&
+          palabras[0].isNotEmpty &&
+          palabras[1].isNotEmpty) {
         return '${palabras[0][0]}${palabras[1][0]}'.toUpperCase();
       }
       return _nombre[0].toUpperCase();
@@ -234,14 +227,18 @@ class _PerfilCompartidoScreenState extends State<PerfilCompartidoScreen> {
           CircleAvatar(
             radius: 60,
             backgroundColor: Colors.white,
-            child: Text(
-              getIniciales(),
-              style: const TextStyle(
-                fontSize: 48,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFFC5414B),
-              ),
-            ),
+            backgroundImage:
+                _fotoPerfil != null ? NetworkImage(_fotoPerfil!) : null,
+            child: _fotoPerfil == null
+                ? Text(
+                    getIniciales(),
+                    style: const TextStyle(
+                      fontSize: 48,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFC5414B),
+                    ),
+                  )
+                : null,
           ),
           const SizedBox(height: 16),
           Text(
@@ -261,10 +258,7 @@ class _PerfilCompartidoScreenState extends State<PerfilCompartidoScreen> {
                 const SizedBox(width: 4),
                 Text(
                   _ubicacion!,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Colors.white70,
-                  ),
+                  style: const TextStyle(fontSize: 14, color: Colors.white70),
                 ),
               ],
             ),
@@ -286,10 +280,7 @@ class _PerfilCompartidoScreenState extends State<PerfilCompartidoScreen> {
               const SizedBox(width: 4),
               Text(
                 '($_totalResenias ${_totalResenias == 1 ? 'reseña' : 'reseñas'})',
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Colors.white70,
-                ),
+                style: const TextStyle(fontSize: 14, color: Colors.white70),
               ),
             ],
           ),
@@ -401,7 +392,8 @@ class _PerfilCompartidoScreenState extends State<PerfilCompartidoScreen> {
             runSpacing: 8,
             children: _categorias.map((categoria) {
               return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
                   color: const Color(0xFFC5414B).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(20),
@@ -425,6 +417,153 @@ class _PerfilCompartidoScreenState extends State<PerfilCompartidoScreen> {
     );
   }
 
+  Widget _buildCertificados() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '✅ Certificados Verificados',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ..._certificadosVerificados.map((cert) {
+            final rubroNombre = cert['rubro']?['nombre'] ?? 'Certificado';
+            final tipo = cert['archivo_tipo'] ?? 'imagen';
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.green.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.verified, size: 24, color: Colors.green),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Matriculado en $rubroNombre',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.green,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          tipo == 'pdf' ? 'Documento PDF' : 'Imagen',
+                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        ),
+                      ],
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => _verCertificado(cert),
+                    icon: Icon(
+                      tipo == 'pdf' ? Icons.picture_as_pdf : Icons.image,
+                      size: 18,
+                      color: const Color(0xFFC5414B),
+                    ),
+                    label: const Text(
+                      'Ver',
+                      style: TextStyle(color: Color(0xFFC5414B)),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _verCertificado(Map<String, dynamic> cert) async {
+    try {
+      final url = await CertificadoService().obtenerUrlArchivo(cert['archivo_url']);
+      if (url == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No se pudo cargar el archivo'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      final esPdf = cert['archivo_tipo'] == 'pdf';
+
+      if (esPdf) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Certificado PDF'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.picture_as_pdf, size: 64, color: Colors.red),
+                const SizedBox(height: 16),
+                Text(cert['rubro']?['nombre'] ?? 'Certificado'),
+                const SizedBox(height: 16),
+                SelectableText(url,
+                    style: const TextStyle(fontSize: 12, color: Colors.blue)),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cerrar'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(cert['rubro']?['nombre'] ?? 'Certificado'),
+            content: SizedBox(
+              width: 500,
+              height: 500,
+              child: Image.network(url, fit: BoxFit.contain),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cerrar'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   Widget _buildResenias() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -444,10 +583,7 @@ class _PerfilCompartidoScreenState extends State<PerfilCompartidoScreen> {
               ),
               Text(
                 '$_totalResenias ${_totalResenias == 1 ? 'reseña' : 'reseñas'}',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                ),
+                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
               ),
             ],
           ),
@@ -466,10 +602,7 @@ class _PerfilCompartidoScreenState extends State<PerfilCompartidoScreen> {
                     const SizedBox(height: 16),
                     Text(
                       'Aún no hay reseñas',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey[600],
-                      ),
+                      style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                     ),
                   ],
                 ),
@@ -482,8 +615,7 @@ class _PerfilCompartidoScreenState extends State<PerfilCompartidoScreen> {
               itemCount: _resenias.length,
               separatorBuilder: (context, index) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
-                final resenia = _resenias[index];
-                return _buildReseniaCard(resenia);
+                return _buildReseniaCard(_resenias[index]);
               },
             ),
         ],
@@ -513,13 +645,18 @@ class _PerfilCompartidoScreenState extends State<PerfilCompartidoScreen> {
               CircleAvatar(
                 radius: 20,
                 backgroundColor: const Color(0xFFC5414B).withOpacity(0.2),
-                child: Text(
-                  resenia.getIniciales(),
-                  style: const TextStyle(
-                    color: Color(0xFFC5414B),
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                backgroundImage: resenia.fotoPerfilEmisor != null
+                    ? NetworkImage(resenia.fotoPerfilEmisor!)
+                    : null,
+                child: resenia.fotoPerfilEmisor == null
+                    ? Text(
+                        resenia.getIniciales(),
+                        style: const TextStyle(
+                          color: Color(0xFFC5414B),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      )
+                    : null,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -536,10 +673,7 @@ class _PerfilCompartidoScreenState extends State<PerfilCompartidoScreen> {
                     ),
                     Text(
                       _formatearFecha(resenia.fecha),
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
-                      ),
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                     ),
                   ],
                 ),
@@ -547,9 +681,7 @@ class _PerfilCompartidoScreenState extends State<PerfilCompartidoScreen> {
               Row(
                 children: List.generate(5, (index) {
                   return Icon(
-                    index < resenia.puntuacion
-                        ? Icons.star
-                        : Icons.star_border,
+                    index < resenia.puntuacion ? Icons.star : Icons.star_border,
                     color: Colors.amber,
                     size: 20,
                   );
@@ -561,11 +693,8 @@ class _PerfilCompartidoScreenState extends State<PerfilCompartidoScreen> {
             const SizedBox(height: 12),
             Text(
               resenia.comentario!,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[700],
-                height: 1.5,
-              ),
+              style:
+                  TextStyle(fontSize: 14, color: Colors.grey[700], height: 1.5),
             ),
           ],
         ],
@@ -578,19 +707,14 @@ class _PerfilCompartidoScreenState extends State<PerfilCompartidoScreen> {
       final ahora = DateTime.now();
       final diferencia = ahora.difference(fecha);
 
-      if (diferencia.inDays == 0) {
-        return 'Hoy';
-      } else if (diferencia.inDays == 1) {
-        return 'Ayer';
-      } else if (diferencia.inDays < 7) {
-        return 'Hace ${diferencia.inDays} días';
-      } else if (diferencia.inDays < 30) {
+      if (diferencia.inDays == 0) return 'Hoy';
+      if (diferencia.inDays == 1) return 'Ayer';
+      if (diferencia.inDays < 7) return 'Hace ${diferencia.inDays} días';
+      if (diferencia.inDays < 30)
         return 'Hace ${(diferencia.inDays / 7).floor()} semanas';
-      } else if (diferencia.inDays < 365) {
+      if (diferencia.inDays < 365)
         return 'Hace ${(diferencia.inDays / 30).floor()} meses';
-      } else {
-        return 'Hace ${(diferencia.inDays / 365).floor()} años';
-      }
+      return 'Hace ${(diferencia.inDays / 365).floor()} años';
     } catch (e) {
       return 'Fecha desconocida';
     }

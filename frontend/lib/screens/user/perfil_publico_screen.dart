@@ -1,4 +1,4 @@
-// lib/screens/profile/perfil_compartido_screen.dart
+// lib/screens/user/perfil_publico_screen.dart
 // 🌐 PANTALLA DE PERFIL PÚBLICO (compartido)
 
 import 'package:flutter/material.dart';
@@ -6,6 +6,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/menu_perfil/perfil_service.dart';
 import '../../models/menu_perfil/perfil_model.dart';
 import '../menu_perfil/recomendados/recomendados_section.dart';
+import '../../services/certificado_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class PerfilCompartidoScreen extends StatefulWidget {
   final int userId;
@@ -25,7 +27,7 @@ class _PerfilCompartidoScreenState extends State<PerfilCompartidoScreen> {
   bool _isLoading = true;
   String _nombre = '';
   String? _ubicacion;
-  String? _fotoPerfil; // ✅ NUEVO
+  String? _fotoPerfil;
   double _calificacionPromedio = 0.0;
   int _totalResenias = 0;
   int _trabajosCompletados = 0;
@@ -33,6 +35,7 @@ class _PerfilCompartidoScreenState extends State<PerfilCompartidoScreen> {
   List<CategoriaModel> _categorias = [];
   bool _esEmpleado = false;
   int? _idUsuarioLogueado;
+  List<Map<String, dynamic>> _certificadosVerificados = [];
 
   @override
   void initState() {
@@ -46,7 +49,6 @@ class _PerfilCompartidoScreenState extends State<PerfilCompartidoScreen> {
     try {
       print('🔍 Cargando perfil del usuario: ${widget.userId}');
 
-      // Obtener id del usuario logueado para saber si es propio perfil
       try {
         final supabase = Supabase.instance.client;
         final authUser = supabase.auth.currentUser;
@@ -77,7 +79,7 @@ class _PerfilCompartidoScreenState extends State<PerfilCompartidoScreen> {
           final nombre = persona['nombre']?.toString() ?? '';
           final apellido = persona['apellido']?.toString() ?? '';
           nombreCompleto = '$nombre $apellido'.trim();
-          _fotoPerfil = persona['foto_perfil_url']?.toString(); // ✅
+          _fotoPerfil = persona['foto_perfil_url']?.toString();
           print('      ✅ Nombre construido: "$nombreCompleto"');
         }
       } else if (datosBasicos['usuario_empresa'] != null) {
@@ -89,7 +91,7 @@ class _PerfilCompartidoScreenState extends State<PerfilCompartidoScreen> {
 
         if (empresa != null && empresa is Map<String, dynamic>) {
           nombreCompleto = empresa['nombre_corporativo']?.toString() ?? '';
-          _fotoPerfil = empresa['logo_url']?.toString(); // ✅
+          _fotoPerfil = empresa['logo_url']?.toString();
           print('      ✅ Nombre empresa: "$nombreCompleto"');
         }
       }
@@ -111,6 +113,16 @@ class _PerfilCompartidoScreenState extends State<PerfilCompartidoScreen> {
         _categorias = await _perfilService.getCategoriasEmpleado(widget.userId);
         _trabajosCompletados =
             await _perfilService.contarTrabajosCompletados(widget.userId);
+      }
+
+      // Cargar certificados verificados
+      try {
+        _certificadosVerificados = await CertificadoService()
+            .obtenerCertificadosVerificados(widget.userId);
+        print('DEBUG certificados verificados: $_certificadosVerificados');
+      } catch (e) {
+        print('⚠️ Error cargando certificados: $e');
+        _certificadosVerificados = [];
       }
 
       print('✅ Perfil cargado completamente');
@@ -169,6 +181,8 @@ class _PerfilCompartidoScreenState extends State<PerfilCompartidoScreen> {
                     const SizedBox(height: 20),
                     if (_categorias.isNotEmpty) _buildCategorias(),
                     if (_categorias.isNotEmpty) const SizedBox(height: 20),
+                    if (_certificadosVerificados.isNotEmpty) _buildCertificados(),
+                    if (_certificadosVerificados.isNotEmpty) const SizedBox(height: 20),
                     _buildResenias(),
                     const SizedBox(height: 20),
                     RecomendadosSection(
@@ -211,7 +225,6 @@ class _PerfilCompartidoScreenState extends State<PerfilCompartidoScreen> {
       padding: const EdgeInsets.all(30),
       child: Column(
         children: [
-          // ✅ CircleAvatar con foto de perfil
           CircleAvatar(
             radius: 60,
             backgroundColor: Colors.white,
@@ -403,6 +416,132 @@ class _PerfilCompartidoScreenState extends State<PerfilCompartidoScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildCertificados() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '✅ Certificados Verificados',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ..._certificadosVerificados.map((cert) {
+            final rubroNombre = cert['rubro']?['nombre'] ?? 'Certificado';
+            final tipo = cert['archivo_tipo'] ?? 'imagen';
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.green.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.verified, size: 24, color: Colors.green),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Matriculado en $rubroNombre',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.green,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          tipo == 'pdf' ? 'Documento PDF' : 'Imagen',
+                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        ),
+                      ],
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => _verCertificado(cert),
+                    icon: Icon(
+                      tipo == 'pdf' ? Icons.picture_as_pdf : Icons.image,
+                      size: 18,
+                      color: const Color(0xFFC5414B),
+                    ),
+                    label: const Text(
+                      'Ver',
+                      style: TextStyle(color: Color(0xFFC5414B)),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _verCertificado(Map<String, dynamic> cert) async {
+    try {
+      final url = await CertificadoService().obtenerUrlArchivo(cert['archivo_url']);
+      if (url == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No se pudo cargar el archivo'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      final esPdf = cert['archivo_tipo'] == 'pdf';
+
+      if (esPdf) {
+        final uri = Uri.parse(url);
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        } else {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(cert['rubro']?['nombre'] ?? 'Certificado'),
+            content: SizedBox(
+              width: 500,
+              height: 500,
+              child: Image.network(url, fit: BoxFit.contain),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cerrar'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   Widget _buildResenias() {

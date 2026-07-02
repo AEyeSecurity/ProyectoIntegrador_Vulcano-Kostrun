@@ -5,6 +5,8 @@ import '../../models/postulacion_model.dart';
 import '../../services/postulacion_service.dart';
 import '../../services/chat_service.dart';
 import '../../services/auth_service.dart';
+import '../../services/certificado_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class PostulacionesTrabajoScreen extends StatefulWidget {
   final int trabajoId;
@@ -26,6 +28,9 @@ class _PostulacionesTrabajoScreenState extends State<PostulacionesTrabajoScreen>
   bool _isLoading = true;
   String? _errorMessage;
   final ChatService _chatService = ChatService(); // ✅ NUEVO
+  final CertificadoService _certificadoService = CertificadoService();
+  int? _rubroIdTrabajo;
+  Map<int, bool> _certificadosVerificados = {};
 
   @override
   void initState() {
@@ -47,9 +52,29 @@ class _PostulacionesTrabajoScreenState extends State<PostulacionesTrabajoScreen>
     });
 
     try {
+      if (_rubroIdTrabajo == null) {
+        final trabajo = await Supabase.instance.client
+            .from('trabajo')
+            .select('id_rubro')
+            .eq('id_trabajo', widget.trabajoId)
+            .maybeSingle();
+        _rubroIdTrabajo = trabajo?['id_rubro'];
+      }
+
       final postulaciones = await PostulacionService.getPostulacionesDeTrabajo(
         widget.trabajoId,
       );
+
+      _certificadosVerificados = {};
+      if (_rubroIdTrabajo != null) {
+        for (var p in postulaciones) {
+          final tiene = await _certificadoService.tieneCertificadoVerificado(
+            p.postulanteId,
+            _rubroIdTrabajo!,
+          );
+          _certificadosVerificados[p.postulanteId] = tiene;
+        }
+      }
 
       setState(() {
         _todasPostulaciones = postulaciones;
@@ -413,6 +438,31 @@ class _PostulacionesTrabajoScreenState extends State<PostulacionesTrabajoScreen>
                           ),
                         ),
                       ),
+                      if (_certificadosVerificados[postulacion.postulanteId] == true)
+                        Container(
+                          margin: const EdgeInsets.only(top: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.green.withOpacity(0.4)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.verified, size: 14, color: Colors.green),
+                              SizedBox(width: 4),
+                              Text(
+                                'Matriculado',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.green,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       const SizedBox(height: 4),
                       Row(
                         children: [

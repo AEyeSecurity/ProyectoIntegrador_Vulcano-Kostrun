@@ -59,6 +59,10 @@ import 'screens/menu_perfil/admin_solicitudes_screen.dart';
 
 import 'screens/menu_perfil/recomendados/agregar_recomendado_screen.dart';
 
+import 'screens/menu_perfil/mis_certificados_screen.dart';
+
+import 'screens/menu_perfil/admin_certificados_screen.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -279,6 +283,12 @@ class MyApp extends StatelessWidget {
         
         // Ruta de recomendados
         '/agregar-recomendado': (context) => const AgregarRecomendadoScreen(),
+
+        // Ruta de Dertificados
+        '/mis-certificados': (context) => const MisCertificadosScreen(),
+
+        // Ruta revisin de certificados por el admin
+        '/admin-certificados': (context) => const AdminCertificadosScreen(),
 
         // ✅ RUTAS DE CHAT
         '/conversaciones': (context) => const ConversacionesScreen(),
