@@ -24,15 +24,37 @@ class MapaTrabajoWidget extends StatefulWidget {
 
 class _MapaTrabajoWidgetState extends State<MapaTrabajoWidget> {
   final UbicacionService _ubicacionService = UbicacionService();
+
   Position? _posicionActual;
   double? _distanciaKm;
   bool _cargando = true;
   String? _error;
 
+  BitmapDescriptor _iconoUsuario = BitmapDescriptor.defaultMarker;
+
   @override
   void initState() {
     super.initState();
-    _cargarUbicacionYDistancia();
+    _inicializarMapa();
+  }
+
+  Future<void> _inicializarMapa() async {
+    try {
+      await _cargarIconoUsuario();
+    } catch (e) {
+      debugPrint('Error al cargar el icono del usuario: $e');
+    }
+
+    await _cargarUbicacionYDistancia();
+  }
+
+  Future<void> _cargarIconoUsuario() async {
+    _iconoUsuario = await BitmapDescriptor.asset(
+      const ImageConfiguration(),
+      'assets/images/ubicacion.png',
+      width: 40,
+      height: 40,
+    );
   }
 
   Future<void> _cargarUbicacionYDistancia() async {
@@ -190,9 +212,7 @@ class _MapaTrabajoWidgetState extends State<MapaTrabajoWidget> {
                               title: 'Lugar de trabajo',
                               snippet: widget.direccionTrabajo,
                             ),
-                            icon: BitmapDescriptor.defaultMarkerWithHue(
-                              BitmapDescriptor.hueRed,
-                            ),
+                            icon: BitmapDescriptor.defaultMarker,
                           ),
                           if (_posicionActual != null)
                             Marker(
@@ -201,9 +221,10 @@ class _MapaTrabajoWidgetState extends State<MapaTrabajoWidget> {
                                 _posicionActual!.latitude,
                                 _posicionActual!.longitude,
                               ),
-                              infoWindow:
-                                  const InfoWindow(title: '📍 Estás acá'),
-                              icon: BitmapDescriptor.defaultMarkerWithHue(210),
+                              infoWindow: const InfoWindow(
+                                title: '📍 Estás acá'
+                                ),
+                              icon: _iconoUsuario,
                             ),
                         },
                         myLocationEnabled: false,
