@@ -31,7 +31,7 @@ class Notificacion {
       mensaje: json['mensaje'] as String,
       tipo: TipoNotificacion.fromString(json['tipo'] as String),
       estado: EstadoNotificacion.fromString(json['estado'] as String),
-      fecha: DateTime.parse(json['fecha'] as String),
+      fecha: DateTime.parse(json['fecha'] as String).toLocal(),
       datosAdicionales: json['datos_adicionales'] as Map<String, dynamic>?,
     );
   }

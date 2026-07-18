@@ -172,6 +172,10 @@ class TrabajoInfo {
   final int? cantidadEmpleadosRequeridos;
   final String nombreRubro;
   final String direccion;
+  // ✅ NUEVO: Datos del empleador
+  final int? empleadorId;
+  final String? nombreEmpleador;
+  final String? fotoEmpleador;
 
   TrabajoInfo({
     required this.id,
@@ -185,14 +189,61 @@ class TrabajoInfo {
     this.cantidadEmpleadosRequeridos,
     required this.nombreRubro,
     required this.direccion,
+    this.empleadorId,
+    this.nombreEmpleador,
+    this.fotoEmpleador,
   });
 
   factory TrabajoInfo.fromJson(Map<String, dynamic> json) {
     String direccion = 'Ubicación no disponible';
     if (json['ubicacion'] != null) {
       final ubi = json['ubicacion'];
-      direccion = '${ubi['calle']} ${ubi['numero']}, ${ubi['ciudad']}';
+      if (ubi is Map<String, dynamic>) {
+        direccion = '${ubi['calle']} ${ubi['numero']}, ${ubi['ciudad']}';
+      } else if (ubi is List && ubi.isNotEmpty) {
+        final u = ubi[0];
+        direccion = '${u['calle']} ${u['numero']}, ${u['ciudad']}';
+      }
     }
+
+    // ✅ NUEVO: Parsear datos del empleador
+    String? nombreEmpleador;
+    String? fotoEmpleador;
+    int? empleadorId;
+
+    if (json['empleador'] != null) {
+      final emp = json['empleador'];
+      if (emp is Map<String, dynamic>) {
+        empleadorId = emp['id_usuario'];
+        
+        // Intentar persona primero
+        final persona = emp['usuario_persona'];
+        if (persona != null) {
+          if (persona is List && persona.isNotEmpty) {
+            nombreEmpleador = '${persona[0]['nombre']} ${persona[0]['apellido']}'.trim();
+            fotoEmpleador = persona[0]['foto_perfil_url'];
+          } else if (persona is Map<String, dynamic>) {
+            nombreEmpleador = '${persona['nombre']} ${persona['apellido']}'.trim();
+            fotoEmpleador = persona['foto_perfil_url'];
+          }
+        }
+        
+        // Si no hay persona, intentar empresa
+        if (nombreEmpleador == null || nombreEmpleador.isEmpty) {
+          final empresa = emp['usuario_empresa'];
+          if (empresa != null) {
+            if (empresa is List && empresa.isNotEmpty) {
+              nombreEmpleador = empresa[0]['nombre_corporativo'];
+            } else if (empresa is Map<String, dynamic>) {
+              nombreEmpleador = empresa['nombre_corporativo'];
+            }
+          }
+        }
+      }
+    }
+    
+    // Fallback: si no hay join de empleador, usar empleador_id del json
+    empleadorId ??= json['empleador_id'];
 
     return TrabajoInfo(
       id: json['id_trabajo'] ?? 0,
@@ -206,6 +257,9 @@ class TrabajoInfo {
       cantidadEmpleadosRequeridos: json['cantidad_empleados_requeridos'],
       nombreRubro: json['rubro']?['nombre'] ?? 'Sin rubro',
       direccion: direccion,
+      empleadorId: empleadorId,
+      nombreEmpleador: nombreEmpleador,
+      fotoEmpleador: fotoEmpleador,
     );
   }
 }

@@ -387,12 +387,11 @@ class CalificacionService {
             .from('postulacion')
             .select('trabajo_id, trabajo!inner(estado_publicacion)')
             .eq('postulante_id', usuarioId)
-            .eq('estado', 'ACEPTADO')
+            .inFilter('estado', ['ACEPTADO', 'FINALIZADO'])
             .eq('trabajo.estado_publicacion', 'FINALIZADO');
         trabajosFinalizados = (trabajosResponse as List).length;
       }
-      print('📊 Trabajos finalizados: $trabajosFinalizados');
-
+      
       // ✅ PASO 5: Desglose por rubro
       // ✅ PASO 5: Desglose por rubro
       Map<String, ReputacionPorRubro> desglosePorRubro = {};
@@ -566,4 +565,25 @@ class CalificacionService {
       );
     }
   }
+
+// ✅ 11. Obtener calificación recibida en un trabajo específico
+  static Future<Map<String, dynamic>?> obtenerCalificacionRecibidaEnTrabajo({
+    required int trabajoId,
+    required int idUsuario,
+  }) async {
+    try {
+      final calificacion = await _supabase
+          .from('calificacion')
+          .select('puntuacion, comentario, fecha')
+          .eq('id_publicacion', trabajoId)
+          .eq('id_receptor', idUsuario)
+          .maybeSingle();
+
+      return calificacion;
+    } catch (e) {
+      print('❌ Error en obtenerCalificacionRecibidaEnTrabajo: $e');
+      return null;
+    }
+  }
+
 }

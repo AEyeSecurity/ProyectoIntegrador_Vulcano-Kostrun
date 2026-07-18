@@ -1,11 +1,13 @@
 // lib/screens/jobs/mis_postulaciones_screen.dart
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../services/postulacion_service.dart';
 import '../../services/chat_service.dart';
 import '../../services/auth_service.dart';
+import '../../services/calificacion_service.dart';
 import '../../models/postulacion_model.dart';
-import '../../models/empleado_empresa_model.dart';
+import '../user/perfil_publico_screen.dart' show PerfilCompartidoScreen;
 
 class MisPostulacionesScreen extends StatefulWidget {
   const MisPostulacionesScreen({Key? key}) : super(key: key);
@@ -21,6 +23,10 @@ class _MisPostulacionesScreenState extends State<MisPostulacionesScreen>
   List<PostulacionModel> _todasPostulaciones = [];
   bool _isLoading = true;
   bool _esEmpresa = false;
+  int? _currentUserId;
+
+  // ✅ NUEVO: Mapa para guardar calificaciones de trabajos finalizados
+  Map<int, Map<String, dynamic>?> _calificacionesPorTrabajo = {};
 
   @override
   void initState() {
@@ -41,9 +47,29 @@ class _MisPostulacionesScreenState extends State<MisPostulacionesScreen>
       final userData = await AuthService.getCurrentUserData();
       final postulaciones = await PostulacionService.getMisPostulaciones();
       
+      final userId = userData?.idUsuario;
+
+      // ✅ NUEVO: Cargar calificaciones para postulaciones finalizadas
+      final Map<int, Map<String, dynamic>?> calificaciones = {};
+      if (userId != null) {
+        final finalizadas = postulaciones.where(
+          (p) => p.estado.toUpperCase() == 'FINALIZADO'
+        ).toList();
+
+        for (var p in finalizadas) {
+          final cal = await CalificacionService.obtenerCalificacionRecibidaEnTrabajo(
+            trabajoId: p.trabajoId,
+            idUsuario: userId,
+          );
+          calificaciones[p.trabajoId] = cal;
+        }
+      }
+
       setState(() {
         _esEmpresa = userData?.isEmpresa ?? false;
+        _currentUserId = userId;
         _todasPostulaciones = postulaciones;
+        _calificacionesPorTrabajo = calificaciones;
         _isLoading = false;
       });
     } catch (e) {
@@ -164,6 +190,17 @@ class _MisPostulacionesScreenState extends State<MisPostulacionesScreen>
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
+    }
+  }
+
+  // ✅ NUEVO: Formatear fecha legible
+  String _formatearFecha(String? fechaStr) {
+    if (fechaStr == null) return 'Sin fecha';
+    try {
+      final fecha = DateTime.parse(fechaStr);
+      return DateFormat('dd/MM/yyyy').format(fecha);
+    } catch (e) {
+      return fechaStr;
     }
   }
 
@@ -317,7 +354,6 @@ class _MisPostulacionesScreenState extends State<MisPostulacionesScreen>
   }
 
   Widget _buildEmpleadoItem(PostulacionModel postulacion) {
-    // Extraer nombre del empleado del empleadoEmpresaId
     final nombreEmpleado = postulacion.nombreConEmpresa ?? 'Empleado';
     
     return Padding(
@@ -381,8 +417,12 @@ class _MisPostulacionesScreenState extends State<MisPostulacionesScreen>
     );
   }
 
-  // ✅ CARD PARA PERSONAS
+  // ✅ CARD PARA PERSONAS (ACTUALIZADO con fecha y calificación)
   Widget _buildCardPersona(PostulacionModel postulacion) {
+    final esFinalizado = postulacion.estado.toUpperCase() == 'FINALIZADO';
+    final calificacion = esFinalizado ? _calificacionesPorTrabajo[postulacion.trabajoId] : null;
+    final trabajo = postulacion.trabajo;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -405,7 +445,7 @@ class _MisPostulacionesScreenState extends State<MisPostulacionesScreen>
               children: [
                 Expanded(
                   child: Text(
-                    postulacion.trabajo?.titulo ?? 'Trabajo',
+                    trabajo?.titulo ?? 'Trabajo',
                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -426,11 +466,138 @@ class _MisPostulacionesScreenState extends State<MisPostulacionesScreen>
                 ),
               ],
             ),
+
+            // ✅ NUEVO: Nombre del empleador con link a perfil
+            if (trabajo?.nombreEmpleador != null) ...[
+              const SizedBox(height: 10),
+              InkWell(
+                onTap: () {
+                  if (trabajo?.empleadorId != null) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PerfilCompartidoScreen(
+                          userId: trabajo!.empleadorId!,
+                        ),
+                      ),
+                    );
+                  }
+                },
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 14,
+                      backgroundColor: const Color(0xFFC5414B),
+                      backgroundImage: trabajo?.fotoEmpleador != null
+                          ? NetworkImage(trabajo!.fotoEmpleador!)
+                          : null,
+                      child: trabajo?.fotoEmpleador == null
+                          ? Text(
+                              trabajo!.nombreEmpleador![0].toUpperCase(),
+                              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                            )
+                          : null,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        trabajo!.nombreEmpleador!,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFFC5414B),
+                          fontWeight: FontWeight.w600,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
+                    Icon(Icons.chevron_right, size: 18, color: Colors.grey[400]),
+                  ],
+                ),
+              ),
+            ],
+
+            // ✅ Info de fecha y calificación para trabajos finalizados
+            if (esFinalizado) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Column(
+                  children: [
+                    // Fecha de realización
+                    Row(
+                      children: [
+                        Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Realizado: ${_formatearFecha(trabajo?.fechaFin ?? postulacion.updatedAt.toIso8601String())}',
+                          style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    // Calificación recibida
+                    Row(
+                      children: [
+                        Icon(Icons.star_rounded, size: 18, color: Colors.amber[700]),
+                        const SizedBox(width: 6),
+                        if (calificacion != null) ...[
+                          ...List.generate(5, (i) => Icon(
+                            i < (calificacion['puntuacion'] as int) 
+                                ? Icons.star_rounded 
+                                : Icons.star_outline_rounded,
+                            size: 18,
+                            color: Colors.amber[700],
+                          )),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${calificacion['puntuacion']}/5',
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey[800]),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '(por ${trabajo?.nombreEmpleador ?? "empleador"})',
+                            style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                          ),
+                        ] else
+                          Text(
+                            'Sin calificación aún',
+                            style: TextStyle(fontSize: 13, color: Colors.grey[500], fontStyle: FontStyle.italic),
+                          ),
+                      ],
+                    ),
+                    // Comentario si existe
+                    if (calificacion != null && 
+                        calificacion['comentario'] != null && 
+                        (calificacion['comentario'] as String).isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.comment_outlined, size: 16, color: Colors.grey[500]),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '"${calificacion['comentario']}"',
+                              style: TextStyle(fontSize: 12, color: Colors.grey[600], fontStyle: FontStyle.italic),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+
             const SizedBox(height: 16),
             
             Row(
               children: [
-                // ✅ BOTÓN CHAT (siempre visible)
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: () => _abrirChat(postulacion),
@@ -443,8 +610,6 @@ class _MisPostulacionesScreenState extends State<MisPostulacionesScreen>
                     ),
                   ),
                 ),
-                
-                // ✅ BOTÓN CANCELAR (solo si está PENDIENTE)
                 if (postulacion.estado.toUpperCase() == 'PENDIENTE') ...[
                   const SizedBox(width: 12),
                   Expanded(
@@ -474,6 +639,7 @@ class _MisPostulacionesScreenState extends State<MisPostulacionesScreen>
       case 'ACEPTADO': return Colors.green;
       case 'RECHAZADO': return Colors.red;
       case 'CANCELADO': return Colors.grey;
+      case 'FINALIZADO': return Colors.blueGrey;
       default: return Colors.grey;
     }
   }

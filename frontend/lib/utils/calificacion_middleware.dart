@@ -7,22 +7,21 @@ import '../screens/menu_perfil/calificaciones_pendientes_screen.dart';
 
 class CalificacionMiddleware {
   /// Verifica si hay calificaciones pendientes y bloquea la navegación si es necesario
-  static Future<bool> verificarYBloquear(BuildContext context) async {
+  static Future<bool> verificarYBloquear(BuildContext parentContext) async {
     print('🔍 CalificacionMiddleware.verificarYBloquear() llamado');
     
     final tienePendientes = await CalificacionService.tieneCalificacionesPendientes();
     
     print('📊 ¿Tiene pendientes?: $tienePendientes');
     
-    if (tienePendientes && context.mounted) {
+    if (tienePendientes && parentContext.mounted) {
       print('🚫 BLOQUEANDO - Mostrando diálogo');
       
-      // Mostrar diálogo AMIGABLE con fondo blur
       await showDialog<bool>(
-        context: context,
+        context: parentContext,
         barrierDismissible: false,
         barrierColor: Colors.black.withOpacity(0.6),
-        builder: (context) => PopScope(
+        builder: (dialogContext) => PopScope(
           canPop: false,
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
@@ -35,7 +34,6 @@ class CalificacionMiddleware {
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // ✅ Ícono amigable (estrella grande)
                   Container(
                     width: 80,
                     height: 80,
@@ -50,8 +48,6 @@ class CalificacionMiddleware {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  
-                  // ✅ Título amigable
                   const Text(
                     '¡Tu opinión es importante!',
                     style: TextStyle(
@@ -62,8 +58,6 @@ class CalificacionMiddleware {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
-                  
-                  // ✅ Mensaje positivo
                   const Text(
                     'Tienes trabajos finalizados esperando tu calificación.',
                     style: TextStyle(
@@ -74,8 +68,6 @@ class CalificacionMiddleware {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 20),
-                  
-                  // ✅ Info box amigable
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -108,39 +100,23 @@ class CalificacionMiddleware {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  
-                  // ✅ Botón principal (atractivo)
                   SizedBox(
                     width: double.infinity,
                     height: 56,
                     child: ElevatedButton(
-                      onPressed: () async {
+                      onPressed: () {
                         print('✅ Usuario presionó "Calificar Ahora"');
-                        Navigator.pop(context); // Cerrar diálogo
+                        Navigator.pop(dialogContext);
                         
-                        // Ir a calificaciones pendientes
-                        final completado = await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const CalificacionesPendientesScreen(),
-                          ),
-                        );
-                        
-                        print('📝 Resultado de calificaciones: $completado');
-                        
-                        // ✅ NUEVO: Después de calificar, verificar de nuevo
-                        if (context.mounted) {
-                          final aun_tiene_pendientes = await CalificacionService.tieneCalificacionesPendientes();
-                          
-                          if (aun_tiene_pendientes) {
-                            // Todavía tiene pendientes, volver a mostrar diálogo
-                            print('⚠️ Aún tiene pendientes, mostrando diálogo de nuevo');
-                            verificarYBloquear(context);
-                          } else {
-                            // YA NO tiene pendientes, navegar a main
-                            print('✅ Completó todas las calificaciones, navegando a main');
-                            Navigator.pushReplacementNamed(context, '/main-nav');
-                          }
+                        if (parentContext.mounted) {
+                          // ✅ Reemplazar LoginScreen por CalificacionesPendientes
+                          // Así el login nunca se ve de fondo
+                          Navigator.pushReplacement(
+                            parentContext,
+                            MaterialPageRoute(
+                              builder: (_) => const CalificacionesPendientesScreen(fromLogin: true),
+                            ),
+                          );
                         }
                       },
                       style: ElevatedButton.styleFrom(
@@ -169,8 +145,6 @@ class CalificacionMiddleware {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  
-                  // ✅ Texto explicativo suave
                   Text(
                     'Solo te tomará un minuto ⏱️',
                     style: TextStyle(

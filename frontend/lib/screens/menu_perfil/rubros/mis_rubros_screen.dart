@@ -103,9 +103,18 @@ class _MisRubrosScreenState extends State<MisRubrosScreen> {
     );
 
     if (result == true) {
-      _cargarRubros(); // Recargar lista
+      _cargarRubros();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Rubros agregados correctamente'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
     }
-  }
+    }
 
   @override
   Widget build(BuildContext context) {

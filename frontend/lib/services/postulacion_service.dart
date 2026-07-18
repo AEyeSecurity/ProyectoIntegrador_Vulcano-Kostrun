@@ -246,7 +246,13 @@ class PostulacionService {
         horario_fin,
         cantidad_empleados_requeridos,
         empleador_id,
-        rubro:id_rubro (nombre)
+        rubro:id_rubro (nombre),
+        ubicacion (calle, numero, ciudad),
+        empleador:empleador_id (
+          id_usuario,
+          usuario_persona (nombre, apellido, foto_perfil_url),
+          usuario_empresa (nombre_corporativo)
+        )
       ),
       empleado_empresa:empleado_empresa_id (
         id_empleado,

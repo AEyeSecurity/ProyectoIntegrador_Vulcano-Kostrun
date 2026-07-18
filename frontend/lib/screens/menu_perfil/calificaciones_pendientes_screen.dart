@@ -6,7 +6,8 @@ import '../../services/calificacion_service.dart';
 import '../jobs/calificar_trabajo_screen.dart';
 
 class CalificacionesPendientesScreen extends StatefulWidget {
-  const CalificacionesPendientesScreen({Key? key}) : super(key: key);
+  final bool fromLogin;
+  const CalificacionesPendientesScreen({Key? key, this.fromLogin = false}) : super(key: key);
 
   @override
   State<CalificacionesPendientesScreen> createState() =>
@@ -60,9 +61,15 @@ class _CalificacionesPendientesScreenState
     if (resultado == true) {
       await _cargarPendientes();
 
-      // ✅ Si ya no hay pendientes, volver a main con resultado exitoso
+      // ✅ Si ya no hay pendientes, navegar según contexto
       if (_pendientes.isEmpty && mounted) {
-        Navigator.pop(context, true); // ✅ NUEVO
+        if (widget.fromLogin) {
+          // Vino del login → entrar directo a la app
+          Navigator.pushReplacementNamed(context, '/main-nav');
+        } else {
+          // Vino del menú → volver atrás
+          Navigator.pop(context, true);
+        }
       }
     }
   }
@@ -74,10 +81,13 @@ class _CalificacionesPendientesScreenState
       appBar: AppBar(
         backgroundColor: const Color(0xFFC5414B),
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: widget.fromLogin
+            ? null  // Sin botón atrás durante login (debe calificar)
+            : IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+              ),
+        automaticallyImplyLeading: !widget.fromLogin,
         title: const Text(
           'Calificaciones Pendientes',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),

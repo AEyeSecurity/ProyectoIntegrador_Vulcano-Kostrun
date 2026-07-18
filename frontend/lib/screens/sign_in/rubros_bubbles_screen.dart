@@ -184,21 +184,13 @@ class _RubrosBubblesScreenState extends State<RubrosBubblesScreen> {
     setState(() => isSaving = true);
 
     try {
-      // Agregar solo los nuevos rubros seleccionados
       for (var rubroId in selectedRubros) {
         await RubroService.addUserRubro(rubroId);
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Rubros agregados correctamente'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
-        );
-
-        // Volver con resultado exitoso
+        // ✅ Resetear estado ANTES de hacer pop
+        setState(() => isSaving = false);
         Navigator.pop(context, true);
       }
     } catch (error) {

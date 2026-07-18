@@ -175,7 +175,7 @@ class NotificacionService {
         'titulo': tipo,
         'mensaje': mensaje,
         'estado': 'NO_LEIDA',
-        'fecha': DateTime.now().toIso8601String(),
+        'fecha': DateTime.now().toUtc().toIso8601String(),
       });
 
       print('✅ Notificación creada para usuario $usuarioId');
